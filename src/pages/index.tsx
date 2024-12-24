@@ -5,6 +5,7 @@ import { GitHubIcon } from "~/components/Icons/GitHubIcon"
 import { InfoIcon } from "~/components/Icons/InfoIcon"
 
 import CenteredPage from "~/components/Layout/CenteredPage"
+import { Button } from "~/components/ui/button"
 
 const Home: NextPage = () => {
   const { data: sessionData } = useSession()
@@ -12,11 +13,11 @@ const Home: NextPage = () => {
   return (
     <CenteredPage>
       <div className="container flex flex-col items-center justify-center gap-10 px-4 py-16 ">
-        <h1 className="text-5xl font-extrabold tracking-tight text-white sm:text-[5rem]">
-          <span className="primary text-primary">Lab</span> Eats
+        <h1 className="text-5xl font-extrabold tracking-tight sm:text-[5rem]">
+          Lab Eats
         </h1>
         <div className="flex flex-col items-center gap-2">
-          <p className="text-2xl text-white">Wilkommen bei LabEats!</p>
+          <p className="text-2xl">Wilkommen bei LabEats!</p>
           {!sessionData && <AuthButton />}
           {sessionData && (
             <div role="alert" className="alert alert-info mt-10">

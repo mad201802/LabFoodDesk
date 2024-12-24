@@ -235,7 +235,7 @@ const UserItem = (props: { orderId: string; userName: string | null }) => {
   return (
     <div key={props.orderId} className="tooltip tooltip-top" data-tip={props.userName}>
       <div className="avatar placeholder">
-        <div className="w-12 rounded-full bg-base-100 text-neutral-content">
+        <div className="w-12 rounded-full text-neutral-content">
           <span>{getUsernameLetters(props.userName)}</span>
         </div>
       </div>

@@ -4,9 +4,31 @@ import { getUsernameLetters } from "~/helper/generalFunctions"
 import { MenueIcon } from "../Icons/MenueIcon"
 import { Balance } from "../General/Balance"
 import { api } from "~/utils/api"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu"
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar"
+import { Button } from "../ui/button"
+import { Menu, Moon, Sun } from "lucide-react"
+import { useTheme } from "next-themes"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "../ui/sheet"
 
 export default function Header() {
   const { data: sessionData } = useSession()
+  const { setTheme } = useTheme()
+
   const loggedIn = !!sessionData?.user
   const { data: userData, isLoading: userIsLoading } = api.user.getMe.useQuery(undefined, {
     enabled: loggedIn,
@@ -41,7 +63,7 @@ export default function Header() {
             }}
           >
             <summary tabIndex={0}>Admin</summary>
-            <ul className="z-[100]">
+            <ul className="z-[100] bg-background">
               <li>
                 <Link href="/admin/inventory">Inventar</Link>
               </li>
@@ -65,37 +87,27 @@ export default function Header() {
   )
 
   return (
-    <div className="navbar bg-base-100">
+    <div className="navbar">
       {loggedIn && (
         <>
           <div className="navbar-start">
-            <div className="dropdown menu-sm">
-              <div tabIndex={0} role="button" className="btn btn-ghost lg:hidden">
-                <MenueIcon />
-              </div>
-              <ul
-                tabIndex={0}
-                className="menu dropdown-content menu-lg z-[1] mt-3 w-60 rounded-box bg-base-100 p-2 shadow-lg"
-                onClick={() => {
-                  const elem = document.activeElement
-                  if (elem) {
-                    setTimeout(() => {
-                      const elem = document.activeElement
-                      if (elem && elem.nodeName !== "SUMMARY") {
-                        ;(elem as HTMLInputElement).blur()
-                      }
-                    }, 100)
-                  }
-                }}
-              >
-                {navElements()}
-              </ul>
-            </div>
-            <Link
-              className="btn btn-ghost text-xl font-extrabold tracking-tight text-white"
-              href="/"
-            >
-              <span className="primary text-primary">Lab</span> Eats
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="lg:hidden">
+                  <Menu />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side={"left"}>
+                <SheetHeader>
+                  <SheetTitle>Menü</SheetTitle>
+                </SheetHeader>
+                <div className="p-4">
+                  <ul className="menu menu-vertical">{navElements()}</ul>
+                </div>
+              </SheetContent>
+            </Sheet>
+            <Link className="btn btn-ghost text-xl font-extrabold tracking-tight" href="/">
+              Lab Eats
             </Link>
           </div>
 
@@ -111,27 +123,46 @@ export default function Header() {
           <div className="text-sm font-thin">
             <Balance balance={userData?.balance} />
           </div>
-          <div className="avatar placeholder dropdown dropdown-end ml-3">
-            <div
-              tabIndex={0}
-              className="w-12 cursor-pointer rounded-full bg-base-300 text-neutral-content hover:bg-base-200"
-            >
-              <span>{getUsernameLetters(sessionData?.user?.name)}</span>
-            </div>
-            <ul
-              tabIndex={0}
-              className="menu dropdown-content z-[1] w-40 rounded-box bg-base-100 p-2 shadow-lg"
-            >
-              <li>
-                <Link className="avatar placeholder" href="/me">
-                  Profil
-                </Link>
-              </li>
-              <li>
-                <a onClick={() => void signOut({ callbackUrl: "/" })}>Log OUT</a>
-              </li>
-            </ul>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild className="ml-3">
+              <Avatar>
+                <AvatarImage
+                  src={sessionData?.user?.image ?? undefined}
+                  alt={sessionData?.user?.name ?? undefined}
+                />
+                <AvatarFallback>{getUsernameLetters(sessionData?.user?.name)}</AvatarFallback>
+              </Avatar>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuLabel>Mein Account</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/me">Profil</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a onClick={() => void signOut({ callbackUrl: "/" })}>Ausloggen</a>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <div className="flex w-full items-center justify-center">
+                      <Button variant="outline" size="icon">
+                        <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                        <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                        <span className="sr-only">Toggle theme</span>
+                      </Button>
+                    </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setTheme("light")}>Light</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setTheme("dark")}>Dark</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setTheme("system")}>System</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
     </div>

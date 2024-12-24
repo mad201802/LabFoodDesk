@@ -3,6 +3,7 @@ import { useRef, useState } from "react"
 import ActionResponsePopup, { AnimationHandle, animate } from "~/components/General/ActionResponsePopup"
 import BuyItemCard from "~/components/General/BuyItemCard"
 import RegularPage from "~/components/Layout/RegularPage"
+import { Input } from "~/components/ui/input"
 import { api } from "~/utils/api"
 
 const BuyPage: NextPage = () => {
@@ -35,21 +36,25 @@ const BuyPage: NextPage = () => {
   return (
     <RegularPage>
       <div className="flex flex-grow flex-col">
-        <div className="self-end pt-1">
-          <input
+        <div className="self-center pt-1">
+          <Input
             type="text"
             placeholder="Suche"
-            className="input-bordered input w-full max-w-xs"
+            className="w-full max-w-xs"
             onChange={(e) => {
               setSearchString(e.target.value)
             }}
           />
+
         </div>
 
         <div className="flex flex-row flex-wrap justify-center gap-2 mt-7 sm:p-4 md:p-7">
-          {displayedItems?.map((item) => (
-            <BuyItemCard key={item.id} item={item} buyAction={buyAction} />
-          ))}
+          {
+            displayedItems && displayedItems.length > 0 ? displayedItems.map((item) => (
+              <BuyItemCard key={item.id} item={item} buyAction={buyAction} />
+            ))
+              : <p className="text-center text-xl">Keine Produkte gefunden</p>
+          }
         </div>
       </div>
       <ActionResponsePopup ref={animationRef} />

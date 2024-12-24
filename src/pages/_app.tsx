@@ -7,6 +7,7 @@ import { api } from "~/utils/api"
 import Head from "next/head"
 import Layout from "~/components/Layout/Layout"
 import "~/styles/globals.css"
+import { ThemeProvider } from "~/components/Layout/ThemeProvider"
 
 const MyApp: AppType<{ session: Session | null }> = ({
   Component,
@@ -14,13 +15,15 @@ const MyApp: AppType<{ session: Session | null }> = ({
 }) => {
   return (
     <SessionProvider session={session}>
-      <Layout>
-        <Head>
-          <title>LabEats</title>
-          <link rel="icon" href="/favicon.ico" />
-        </Head>
-        <Component {...pageProps} />
-      </Layout>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <Layout>
+          <Head>
+            <title>LabEats</title>
+            <link rel="icon" href="/favicon.ico" />
+          </Head>
+          <Component {...pageProps} />
+        </Layout>
+      </ThemeProvider>
     </SessionProvider>
   )
 }
