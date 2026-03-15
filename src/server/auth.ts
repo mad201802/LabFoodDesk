@@ -5,12 +5,25 @@ import {
   type DefaultSession,
   type DefaultUser,
   type NextAuthOptions,
+  type User,
 } from "next-auth"
+import type { Adapter, AdapterAccount } from "next-auth/adapters"
 import CredentialsProvider from "next-auth/providers/credentials"
 import EmailProvider from "next-auth/providers/email"
+import KeycloakProvider from "next-auth/providers/keycloak"
 import { env } from "~/env.mjs"
 import { prisma } from "~/server/db"
 import { manageLdapLogin } from "./ldap"
+
+export const keycloakEnabled =
+  !!env.KEYCLOAK_ISSUER &&
+  !!env.KEYCLOAK_CLIENT_ID &&
+  !!env.KEYCLOAK_CLIENT_SECRET
+
+export const ldapEnabled =
+  !!env.LDAP_URL &&
+  !!env.LDAP_BIND_USER &&
+  !!env.LDAP_BIND_PASSWORT
 
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
@@ -40,16 +53,38 @@ declare module "next-auth/jwt" {
   }
 }
 
+/** IMPORTANT FOR INTEGRATING KEYCLOAK */
+const prismaAdapter = PrismaAdapter(prisma) as Adapter
+const extendedPrismaAdapter: Adapter = {
+  ...prismaAdapter,
+  async linkAccount(account: AdapterAccount) {
+    if (!prismaAdapter.linkAccount)
+      throw new Error("NextAuth: prismaAdapter.linkAccount not implemented")
+
+    // Keycloak returns incompatible data with the nextjs-auth schema
+    // (refresh_expires_in and not-before-policy).
+    // refresh_expires_in was added to the schema, but not-before-policy is not compatible with Prisma's field naming conventions.
+    // So, we need to remove this data from the payload before linking an account.
+    // https://github.com/nextauthjs/next-auth/issues/7655
+    if (account.provider === "keycloak") {
+      delete account["not-before-policy"]
+    }
+
+    await prismaAdapter.linkAccount(account)
+  },
+}
+
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
  *
  * @see https://next-auth.js.org/configuration/options
  */
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  adapter: extendedPrismaAdapter,
   session: {
     strategy: "jwt",
-  },  pages: {
+  },
+  pages: {
     signIn: "/",
   },
   callbacks: {
@@ -69,40 +104,67 @@ export const authOptions: NextAuthOptions = {
     },
   },
   providers: [
-    CredentialsProvider({
-      name: "ASL-Account",
-      credentials: {
-        username: { label: "ASL-Username", type: "text", placeholder: "sally.ride" },
-        password: { label: "Password", type: "password", placeholder: "sUper $ecr3t" },
-      },
-      async authorize(credentials, req) {
-        if (!credentials || credentials.username.length <= 1 || credentials.password.length <= 1) {
-          return null
-        }
-        return manageLdapLogin(credentials?.username, credentials?.password)
-      },
-    }),
+    ...(ldapEnabled ? [
+      CredentialsProvider({
+        name: "ASL-Account",
+        credentials: {
+          username: { label: "ASL-Username", type: "text", placeholder: "sally.ride" },
+          password: { label: "Password", type: "password", placeholder: "sUper $ecr3t" },
+        },
+        async authorize(credentials, _req) {
+          if (!credentials || credentials.username.length <= 1 || credentials.password.length <= 1) {
+            return null
+          }
+          return manageLdapLogin(credentials?.username, credentials?.password)
+        },
+      })
+    ] : []),
+    ...(keycloakEnabled
+      ? [
+        KeycloakProvider({
+          clientId: env.KEYCLOAK_CLIENT_ID!,
+          clientSecret: env.KEYCLOAK_CLIENT_SECRET!,
+          issuer: env.KEYCLOAK_ISSUER!,
+          profile(profile) {
+            const uidNumber = profile.uidNumber
+            const isAdmin = Array.isArray(profile.groups) &&
+              profile.groups.some(
+                (group) => typeof group === "string" && group.toUpperCase() === "LABEATS_ADMIN",
+              )
+            const user = {
+              id: uidNumber ? String(uidNumber) : String(profile.sub),
+              name: profile.name ?? profile.preferred_username ?? null,
+              email: profile.email,
+              image: null,
+              is_admin: isAdmin,
+            } as User
+            return user
+          },
+          // allowDangerousEmailAccountLinking: true,
+        }),
+      ]
+      : []),
     ...(env.NODE_ENV === "development"
       ? [
-          EmailProvider({
-            server: {
-              host: env.EMAIL_SERVER_HOST,
-              port: env.EMAIL_SERVER_PORT,
-              auth: {
-                user: env.EMAIL_SERVER_USER,
-                pass: env.EMAIL_SERVER_PASSWORD,
-              },
+        EmailProvider({
+          server: {
+            host: env.EMAIL_SERVER_HOST,
+            port: env.EMAIL_SERVER_PORT,
+            auth: {
+              user: env.EMAIL_SERVER_USER,
+              pass: env.EMAIL_SERVER_PASSWORD,
             },
-            ...(env.EMAIL_DEV_PRINT_TOKEN === "true" && env.NODE_ENV === "development" && {
-              sendVerificationRequest(params) {
-                console.log("\n", "=".repeat(40))
-                console.log(`🔗 Verification URL: ${params.url}`)
-                console.log("=".repeat(40), "\n")
-              },
-            }),
-            from: env.EMAIL_FROM,
+          },
+          ...(env.EMAIL_DEV_PRINT_TOKEN === "true" && env.NODE_ENV === "development" && {
+            sendVerificationRequest(params) {
+              console.log("\n", "=".repeat(40))
+              console.log(`🔗 Verification URL: ${params.url}`)
+              console.log("=".repeat(40), "\n")
+            },
           }),
-        ]
+          from: env.EMAIL_FROM,
+        }),
+      ]
       : []),
   ],
 }
