@@ -1,5 +1,5 @@
 import { type NextPage } from "next"
-import { useRef, useState } from "react"
+import { useRef, useState, useSyncExternalStore } from "react"
 import { Search, Package } from "lucide-react"
 import ActionResponsePopup, {
   type AnimationHandle,
@@ -9,6 +9,35 @@ import BuyItemCard from "~/components/General/BuyItemCard"
 import RegularPage from "~/components/Layout/RegularPage"
 import { api } from "~/utils/api"
 
+type SortMode = "recent" | "alphabetic" | "mostBought"
+
+const SORT_MODE_STORAGE_KEY = "buyPageSortMode"
+const SORT_MODE_STORAGE_EVENT = "buyPageSortModeChange"
+const sortModes: SortMode[] = ["recent", "alphabetic", "mostBought"]
+
+const isSortMode = (value: string | null): value is SortMode => {
+  return sortModes.includes(value as SortMode)
+}
+
+const getStoredSortMode = (): SortMode => {
+  if (typeof window === "undefined") {
+    return "recent"
+  }
+
+  const storedSortMode = window.localStorage.getItem(SORT_MODE_STORAGE_KEY)
+  return isSortMode(storedSortMode) ? storedSortMode : "recent"
+}
+
+const subscribeToSortMode = (onStoreChange: () => void) => {
+  window.addEventListener("storage", onStoreChange)
+  window.addEventListener(SORT_MODE_STORAGE_EVENT, onStoreChange)
+
+  return () => {
+    window.removeEventListener("storage", onStoreChange)
+    window.removeEventListener(SORT_MODE_STORAGE_EVENT, onStoreChange)
+  }
+}
+
 const BuyPage: NextPage = () => {
   const allItemsRequest = api.item.getBuyable.useQuery()
   const allCategoriesRequest = api.category.getAllWithItems.useQuery()
@@ -16,19 +45,26 @@ const BuyPage: NextPage = () => {
   const trpcUtils = api.useUtils()
   const animationRef = useRef<AnimationHandle>(null)
   const [searchString, setSearchString] = useState("")
+  const sortMode = useSyncExternalStore(subscribeToSortMode, getStoredSortMode, () => "recent")
   const [categoryOverrides, setCategoryOverrides] = useState<{ [index: string]: boolean }>({})
 
   const apiBuyOneItemMultiple = api.item.buyItem.useMutation()
 
+  const handleSortModeChange = (newSortMode: SortMode) => {
+    window.localStorage.setItem(SORT_MODE_STORAGE_KEY, newSortMode)
+    window.dispatchEvent(new Event(SORT_MODE_STORAGE_EVENT))
+  }
+
   const buyAction = async (itemID: string, quantity: number = 1): Promise<void> => {
     try {
       await apiBuyOneItemMultiple.mutateAsync({ productID: itemID, quantity })
-      
-      const message = quantity === 1 
-        ? "Erfolgreich gekauft!" 
+
+      const message = quantity === 1
+        ? "Erfolgreich gekauft!"
         : `${quantity}x erfolgreich gekauft!`
       animate(animationRef, "success", message)
       await trpcUtils.user.invalidate()
+      await trpcUtils.item.getBuyable.invalidate()
     } catch (error: any) {
       console.error(error)
       animate(animationRef, "failure", error.message)
@@ -59,7 +95,27 @@ const BuyPage: NextPage = () => {
       const searchShown = item.name.toLowerCase().includes(searchString.toLowerCase())
       return categoryShown && searchShown
     })
-    .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
+    .sort((a, b) => {
+      const nameComparison = a.name.toLowerCase().localeCompare(b.name.toLowerCase())
+
+      if (sortMode === "alphabetic") {
+        return nameComparison
+      }
+      else if (sortMode === "mostBought") {
+        if (a.userOrderCount !== b.userOrderCount) {
+          return b.userOrderCount - a.userOrderCount
+        }
+        return nameComparison
+      }
+      else {
+        const aLastBoughtAt = a.userLastBoughtAt?.getTime() ?? 0
+        const bLastBoughtAt = b.userLastBoughtAt?.getTime() ?? 0
+        if (aLastBoughtAt !== bLastBoughtAt) {
+          return bLastBoughtAt - aLastBoughtAt
+        }
+        return nameComparison
+      }
+    })
 
   const selectedCategoriesCount = Object.values(displayCategories).filter(Boolean).length
   const allCategoriesSelected = selectedCategoriesCount === allRelevantCategories?.length
@@ -91,13 +147,14 @@ const BuyPage: NextPage = () => {
         {/* Search and Filter Section */}
         <div className="card bg-base-200 shadow-sm">
           <div className="card-body p-4">
-            {/* Search Bar */}
-            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+
+            <div className="flex flex-col sm:flex-row gap-3 justify-between items-start">
               <div className="flex-1 max-w-md">
                 <div className="form-control">
                   <label className="label">
                     <span className="label-text font-medium">Produktsuche</span>
-                  </label>                  <div className="relative">
+                  </label>
+                  <div className="relative">
                     <input
                       type="text"
                       placeholder="Nach Produkten suchen..."
@@ -118,15 +175,35 @@ const BuyPage: NextPage = () => {
                 </div>
               </div>
 
-              {/* Results Summary */}
-              <div className="text-sm text-base-content/70">
-                {displayedItems ? (
-                  <span>
-                    {displayedItems.length} Produkt{displayedItems.length !== 1 ? "e" : ""} gefunden
-                  </span>
-                ) : (
-                  <span>Lade...</span>
-                )}
+
+              <div className="sm:w-40">
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text font-medium">Sortierung</span>
+                  </label>
+                  <div>
+                    <select
+                      className="select select-bordered select-sm w-full"
+                      value={sortMode}
+                      onChange={(e) => handleSortModeChange(e.target.value as SortMode)}
+                    >
+                      <option value="recent">Zuletzt gekauft</option>
+                      <option value="alphabetic">Alphabetisch</option>
+                      <option value="mostBought">AI (activity indicator)</option>
+                    </select>
+                  </div>
+                </div>
+
+
+                <div className="text-xs pt-1 text-base-content/70">
+                  {displayedItems ? (
+                    <span>
+                      {displayedItems.length} Produkt{displayedItems.length !== 1 ? "e" : ""} gefunden
+                    </span>
+                  ) : (
+                    <span>Lade...</span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -136,7 +213,7 @@ const BuyPage: NextPage = () => {
                 <label className="label">
                   <span className="label-text font-medium">Kategorien filtern</span>
                 </label>
-                
+
                 <div className="flex gap-2">
                   <button
                     onClick={handleSelectAllCategories}
@@ -154,20 +231,19 @@ const BuyPage: NextPage = () => {
                   </button>
                 </div>
               </div>
-              
+
               <div className="flex flex-wrap gap-2">
                 {allRelevantCategories?.filter(i => i.is_active).map((category) => {
                   const isSelected = displayCategories[category.id] === true
                   const itemCount = category.items.filter(item => !item.for_grouporders && item.is_active).length
-                  
+
                   return (
                     <button
                       key={category.id}
-                      className={`btn btn-sm transition-all duration-200 ${
-                        isSelected 
-                          ? "btn-primary" 
-                          : "btn-outline hover:btn-primary hover:btn-outline-primary"
-                      }`}
+                      className={`btn btn-sm transition-all duration-200 ${isSelected
+                        ? "btn-primary"
+                        : "btn-outline hover:btn-primary hover:btn-outline-primary"
+                        }`}
                       onClick={() => {
                         const id = category.id
                         setCategoryOverrides((dc) => ({ ...dc, [id]: !displayCategories[id] }))
@@ -187,14 +263,15 @@ const BuyPage: NextPage = () => {
 
         {/* Items Grid */}
         <div className="space-y-4">
-          {/* No Results Message */}          {displayedItems?.length === 0 && (
+          {/* No Results Message */}
+          {displayedItems?.length === 0 && (
             <div className="text-center py-12">
               <div className="text-base-content/50 space-y-2">
                 <Package className="h-16 w-16 mx-auto opacity-30" />
                 <p className="text-lg">Keine Produkte gefunden</p>
                 <p className="text-sm">
-                  {searchString 
-                    ? `Versuche einen anderen Suchbegriff als "${searchString}"` 
+                  {searchString
+                    ? `Versuche einen anderen Suchbegriff als "${searchString}"`
                     : "Wähle mindestens eine Kategorie aus"}
                 </p>
               </div>
@@ -205,9 +282,9 @@ const BuyPage: NextPage = () => {
           {displayedItems && displayedItems.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
               {displayedItems.map((item) => (
-                <BuyItemCard 
-                  key={item.id} 
-                  item={item} 
+                <BuyItemCard
+                  key={item.id}
+                  item={item}
                   buyAction={buyAction}
                   userBalance={userDataRequest.data?.balance}
                 />
