@@ -10,7 +10,7 @@
     "start": "next start",
     "test": "vitest",
     "screenshots": "jiti scripts/screenshots/capture.ts",
-    "screenshots:ci": "npm run db:seed && npm run screenshots:capture",
+    "screenshots:ci": "npm run db:seed && npm run screenshots",
     "db:generate": "prisma generate",
     "db:migrate": "npx prisma migrate dev",
     "db:migrate:prod": "npx prisma migrate deploy",
