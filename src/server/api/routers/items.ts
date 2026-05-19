@@ -247,11 +247,11 @@ export const buyItem = async (
   })
 
   const fees = calculateFeesPerCategory(product.price, product.categories)
-  const totalPrice = product.price + fees.total
+  const totalPriceSingleQty = product.price + fees.total
 
   await prisma.$transaction(async (tx) => {
     const user = await tx.user.findUniqueOrThrow({ where: { id: userId } })
-    checkAccountBacking(user, totalPrice)
+    checkAccountBacking(user, totalPriceSingleQty * quantity)
 
     const transaction: Prisma.TransactionCreateInput = {
       user: { connect: { id: userId } },
@@ -269,7 +269,7 @@ export const buyItem = async (
       clearingAccount: { connect: { id: product.accountId } },
       type: 0,
       amountWithoutFees: product.price,
-      totalAmount: totalPrice,
+      totalAmount: totalPriceSingleQty,
     }
     if (groupId) {
       transaction["groupOrder"] = { connect: { id: groupId } }
@@ -281,7 +281,7 @@ export const buyItem = async (
       })
       await tx.user.update({
         where: { id: userId },
-        data: { balance: { decrement: totalPrice } },
+        data: { balance: { decrement: totalPriceSingleQty } },
       })
       await tx.clearingAccount.update({
         where: { id: product.accountId },

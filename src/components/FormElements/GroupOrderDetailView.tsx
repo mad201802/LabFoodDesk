@@ -1,4 +1,5 @@
 import type { inferRouterOutputs } from "@trpc/server"
+import { ListTodo } from "lucide-react"
 import { useState } from "react"
 import { localStringOptions } from "~/helper/globalTypes"
 import type { AppRouter } from "../../server/api/root"
@@ -72,12 +73,15 @@ const GroupOrderDetailView = (props: Props) => {
 
             <div className="flex justify-end">
               <button
-                className="btn btn-ghost btn-sm mr-4 mt-1"
+                className="btn btn-primary btn-sm mr-4 mt-1"
                 onClick={() => {
                   setOpenOrderSummaryModal(true)
                 }}
               >
-                Einkaufsliste
+                <div className="flex items-center gap-3">
+                  <ListTodo className="h-4 w-4" />
+                  Einkaufsliste
+                </div>
               </button>
             </div>
 

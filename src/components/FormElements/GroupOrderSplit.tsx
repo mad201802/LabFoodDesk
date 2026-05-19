@@ -1,4 +1,5 @@
 import type { ProcurementItem } from "@prisma/client"
+import { Coins } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { type ChangeEvent, useMemo, useRef, useState } from "react"
 import { z } from "zod"
@@ -323,7 +324,7 @@ const GroupOrderSplit = (props: Props) => {
           <select
             className={`select select-bordered select-sm w-full max-w-xs font-bold ${
               destinationError ? "select-error" : ""
-            }`}
+              }`}
             id="sel-dest-user"
             value={selectedDestination}
             onChange={(e) => {
@@ -343,6 +344,7 @@ const GroupOrderSplit = (props: Props) => {
             className="btn btn-primary btn-sm mr-4 mt-1"
             onClick={() => setCloseGroupOrderModalOpen(true)}
           >
+            <Coins className="h-4 w-4" />
             Abrechnen
           </button>
         </div>
