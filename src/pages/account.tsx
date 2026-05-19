@@ -134,7 +134,7 @@ const AccountPage: NextPage = () => {
   return (
     <>
       <CenteredPage>
-        <div className="mx-auto max-w-6xl space-y-8 px-4 py-6">
+        <div className="mx-auto w-full max-w-6xl space-y-8 px-4 py-6">
           {/* Header Section */}
           <div className="space-y-4 text-center">
             <div className="flex items-center justify-center gap-4">
