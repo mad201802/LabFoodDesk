@@ -1,12 +1,38 @@
 import "dotenv/config"
-import { PrismaClient } from "@prisma/client"
+import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3"
+import { PrismaClient } from "../../src/generated/prisma/client"
 import { spawnSync } from "node:child_process"
+import { rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 
-process.env.DATABASE_URL = process.env.SCREENSHOT_DATABASE_URL ?? "file:./screenshots.db"
+const defaultScreenshotDatabaseUrl = "file:./screenshots.db"
+const databaseUrl = process.env.SCREENSHOT_DATABASE_URL ?? defaultScreenshotDatabaseUrl
 
-const prismaCli = path.resolve("node_modules", "prisma", "build", "index.js")
-const push = spawnSync(process.execPath, [prismaCli, "db", "push", "--skip-generate"], {
+const databaseUrlServer = databaseUrl.startsWith("file:./")
+  ? `file:./prisma/${databaseUrl.slice("file:./".length)}`
+  : databaseUrl;
+
+process.env.DATABASE_URL = databaseUrlServer
+
+if (databaseUrl === defaultScreenshotDatabaseUrl) {
+  const databasePath = path.resolve("prisma", "screenshots.db")
+  rmSync(databasePath, { force: true })
+  rmSync(`${databasePath}-journal`, { force: true })
+  writeFileSync(databasePath, "")
+}
+
+const prismaCommand =
+  process.platform === "win32"
+    ? {
+        command: process.env.ComSpec ?? "cmd.exe",
+        args: ["/d", "/s", "/c", "npx prisma db push --force-reset"],
+      }
+    : {
+        command: "npx",
+        args: ["prisma", "db", "push", "--force-reset"],
+      }
+
+const push = spawnSync(prismaCommand.command, prismaCommand.args, {
   stdio: "inherit",
   env: process.env,
 })
@@ -18,7 +44,12 @@ if (push.status !== 0) {
   process.exit(push.status ?? 1)
 }
 
-const prisma = new PrismaClient()
+
+const prisma = new PrismaClient({
+  adapter: new PrismaBetterSqlite3({
+    url: databaseUrlServer,
+  }),
+})
 
 const ids = {
   users: ["screenshot-demo-user", "screenshot-user-2", "screenshot-user-3", "screenshot-user-4"],
